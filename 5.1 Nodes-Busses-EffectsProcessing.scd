@@ -106,29 +106,29 @@ Synths can send control signals to each other via a single global array of contr
 // an effects send network
 ( // effects SynthDefs+src SynthDef
 // each effect Synthdef has an 'inBus' argument, like its effect-send channel, read in by 'In.ar(inBus)'
-SynthDef(\rvb,{|inBus=16,size=1,damp=0.2,amp=1|
-	Out.ar(0,FreeVerb.ar(In.ar(inBus,1),1,size,damp,amp))
+SynthDef(\rvb,{ arg inBus=16,size=1,damp=0.2,amp=1;
+	Out.ar(0,FreeVerb.ar(In.ar(inBus,1),1,size,damp,amp).dup)
 }).store;
 
-SynthDef(\rngFlt,{|inBus=16,freq=440,decay=0.05,amp=0.25|
-	Out.ar(0,Ringz.ar(In.ar(inBus,1),freq,decay,amp));
+SynthDef(\rngFlt,{ arg inBus=16,freq=440,decay=0.05,amp=0.25;
+	Out.ar(0,Ringz.ar(In.ar(inBus,1),freq,decay,amp).dup);
 }).store;
 
-SynthDef(\combDelay,{|inBus=16,delay=0.5,decay=4,amp=1|
-	Out.ar(0,CombN.ar(In.ar(inBus,1),1.0,delay,decay),amp)
+SynthDef(\combDelay,{ arg inBus=16,delay=0.5,decay=4,amp=1;
+	Out.ar(0,CombN.ar(In.ar(inBus,1),1.0,delay,decay).dup,amp)
 }).store;
 
-SynthDef(\pshift,{|inBus=16,wsize=0.2,pRtio=0.5,pDsp=0,tDsp=0.01,amp=1|
-	Out.ar(0,PitchShift.ar(In.ar(inBus,1),wsize,pRtio,pDsp,tDsp,amp));
+SynthDef(\pshift,{ arg inBus=16,wsize=0.2,pRtio=0.5,pDsp=0,tDsp=0.01,amp=1;
+	Out.ar(0,PitchShift.ar(In.ar(inBus,1),wsize,pRtio,pDsp,tDsp,amp).dup);
 }).store;
 
 // source SynthDefs have an 'effBus' argument, specifying an effect send Bus number
 //  an 'effAmp' arg sets the level of the effect send
-SynthDef(\effSend_src,{|freq=440,range=0.1,spd=5,amp=0.1,effBus=16,effAmp=1|
+SynthDef(\effSend_src,{ arg freq=440,range=0.1,spd=5,amp=0.1,effBus=16,effAmp=1;
 	var frqRange=freq*range;
 	var src=Saw.ar(freq+LFNoise0.kr(spd,frqRange));
 	Out.ar(effBus,src*effAmp);
-	Out.ar(0,src*amp);
+	Out.ar(0,(src*amp).dup);
 }).store;
 )
 (  // this is an intialization block that will need to be compiled again to change effects
@@ -136,6 +136,7 @@ SynthDef(\effSend_src,{|freq=440,range=0.1,spd=5,amp=0.1,effBus=16,effAmp=1|
 // the parenthesis enclosure below creates an Event, a kind of Dictionary that provides a list of  pairs of keys(symbols) associated with things, in this case audio Buses
 ~effBus = (rvb: Bus.audio(s,1), flt: Bus.audio(s,1), delay: Bus.audio(s,1), pshift:Bus.audio(s,1)  );
 // the next Event stores references to the effect Synths
+if(~effects.notNil,{~effects.keysValuesDo {|k,v| v.free }; });
 ~effects = (
 	rvb: Synth(\rvb,[\inBus,~effBus[\rvb]],~effGroup),   //  syntax  ' key:  value,' creates the association
 	flt: Synth(\rngFlt,[\inBus,~effBus[\flt]],~effGroup),
@@ -161,11 +162,13 @@ x.free;   // release the source-synth
 
 // instead of switching, the next variation of the effSend_src SynthDef allows sending to multiple effect bus sends
 (
-SynthDef(\effSend_src,{|effBus=16,eff1Amp=0,eff2Amp=0,eff3Amp=0,eff4Amp=0,
-	freq=440,range=0.1,spd=5,amp=0.1|
-	var src=Saw.ar(freq+LFNoise0.kr(spd,freq*range));
-	Out.ar(effBus,[src*eff1Amp,src*eff2Amp,src*eff3Amp,src*eff4Amp]); // write to four effect Buses
-	Out.ar(0,src*amp);  // unprocessed output
+SynthDef(\effSend_src,{ arg effBus=16,eff1Amp=0,eff2Amp=0,eff3Amp=0,eff4Amp=0,
+	freq=440,range=0.1,spd=5,amp=0.1;
+	var frqRange=freq*range;
+	var src=Saw.ar(freq+LFNoise0.kr(spd,frqRange));
+	Out.ar(effBus,
+		[src*eff1Amp,src*eff2Amp,src*eff3Amp,src*eff4Amp]); // write to four effect Buses
+	Out.ar(0,(src*amp).dup);  // unprocessed output
 }).store;
 )
 x = Synth.before(~effGroup,\effSend_src,[\effBus,~effBus[\rvb],\eff1Amp,0.2]);
@@ -201,9 +204,11 @@ s.scope(4,~effBus[\rvb].index);
 x.free;
 ~effBus.do ({|bus| bus.free });
 )
+
+
 /* ASSIGNMENT #3
 
-Make your own collections of multiple signal processing effects stored in an Event, using UGens found by browsing through the following types of UGens found in the Help browser/Browse/UGens:
+Make your own collections of signal processing effects  using UGens found by browsing through the following types of UGens found in the Help browser/Browse/UGens:
 
 Filters
 Delays
@@ -213,43 +218,67 @@ Reverbs
 Convolution
 Pitch, FreqShift
 
-....  and then adapt your SynthDef library from Assgn#2 to use them with your effects in a Pdef piece -
+....  and then adapt your SynthDef library from Assgn#2 to use them with your effects in a Patterns piece -
 */
+
 (
-SynthDef(\saw_src,{|effBus=16,eff1Amp=0,eff2Amp=0,eff3Amp=0,eff4Amp=0,
-	freq=440,range=0.1,spd=5,amp=0.1,dur=1,gate=1|
-    var env = EnvGen.ar(Env.new([0,1,1,0],[0.1,dur-0.2,0.1]),gate,doneAction:2);
-	var src=Saw.ar(freq+LFNoise0.kr(spd,freq*range),env);
-	Out.ar(effBus,[src*eff1Amp,src*eff2Amp,src*eff3Amp,src*eff4Amp]); // write to four effect Buses
-	Out.ar(0,src*amp);  // unprocessed output
+SynthDef(\saw_src,{ arg effBus=16,eff1Amp=0,eff2Amp=0,eff3Amp=0,eff4Amp=0,
+	freq=440,range=0.1,spd=5,amp=0.1,dur=1,gate=1;
+	// it's important to use a 'gate', which turns off the Synth after a note is played by the pattern -- and make it be the last of the arguments you declare, because this also marks the end of arguments that are addressable by Patterns
+	var env = EnvGen.ar(Env.new([0,1,1,0],[0.02,0.2,dur-0.22]),gate,doneAction:2);  // 'gate' must follow the Env -- don't use '1' here, or the synth won't turn off!
+	var src=Saw.ar(
+		LFNoise0.kr(spd,(freq-(freq*range).abs),freq),
+		env);
+	Out.ar(effBus,[src*eff1Amp,src*eff2Amp,src*eff3Amp,src*eff4Amp]); // sends to up to four contiguous effect Busses
+	Out.ar(0,(src*amp).dup);  // unprocessed output
 }).store;
 )
-// Then reinitialize an effect synths/group, and then use Pmono to start pattern pairs for each effect to change controls
-(
-a = Ppar([
-    Pbind(\instrument,\saw_src,
-        \effBus,~effBus[\rvb],
-        \eff1Amp,Pseq([1,0.75,0.5,0.25,0],8),
-        \eff2Amp,Pseq([1,0.75,0.5,0.25,0].reverse,8),
-        \eff3Amp,Pseq([0,0.25,0.5,0.75,1],8),
-        \eff4Amp,Pseq([0,0.25,0.5,0.75,1].reverse,8),
-        \freq,Prand([440,110,220,330],inf),
-        \range,0.1, \spd,5, \amp,0.1,\dur,1),
-    Pmono(\rvb,
-        \size,1,
-        \damp,0.2,
-        \amp,1,
-        \dur,8),
-    Pmono(\rngFlt,\freq,Pwhite(880,1760),\decay,0.05,
-        \amp,1,
-        \dur,4),
-    Pmono(\combDelay,\delay,Prand([0.5,0.25,0.125,0.375],inf),\decay,4,
-        \amp,1,
-        \dur,2),
-    Pmono(\pshift,\wsize,0.2,\pRtio,0.5,\pDsp,0,\tDsp,0.01,
-        \amp,1,\dur,1)
-])
+// Re-intialize the effects Busses if needed because you 'free'd them ain the code above, or if you're restarting from scratch -- then  use Pmono to start and changing change arguments for the effects.  Pmono will start the synth whose name is its first argument, and it stays playing until the end of the Pattern, when it turns it off.  This means that you don't need to start or save the Synths using the ~effects code as before for non-Pattern playing.  But you need to be sure  that the effect synth is assigned to the ~effGroup , and the synths that play into it are assigned to Group 1, thus ensuring that they always run before the effects synths do. Here's a template example:
+
+( // re-initialize the Group and audio Busses
+~effGroup = Group.tail(1);
+// change names of each Bus to match your effect Synth
+~effBus = (rvb: Bus.audio(s,1), flt: Bus.audio(s,1), delay: Bus.audio(s,1), pshift:Bus.audio(s,1)  );
 )
-a=a.play;
-a.stop;
+(
+Pdef(\effPat,
+	Ppar([
+		Pbind(\instrument,\saw_src,
+			\group,1,
+			\amp, 10.5,
+			\effBus, ~effBus[\rvb].index,  // point to the first of four Busses
+			\freq, Pseq([200,400,300,200,400,600],inf),
+			\range,127/128,
+			\spd,5,
+			\amp, 0.5,
+			// effAmp2 changes volume on effect send to 'flt'
+			\eff2Amp, Pxrand([0.25,0.125,1,0.75,0.5,0.875]*0.2,inf),
+			\pitchdecay, 0.001,
+			// effAmp3 changes volume on effect send to 'delay'
+			\eff3Amp, Pseq([0.5,0,1,0,0.5,0,0.5,0],inf),
+			\legato,0.125,
+			\dur, Prand([0.33,0.66,1.0,0.33],inf)
+		),
+		Pmono(\combDelay,
+			\group,~effGroup,
+			\inBus, ~effBus[\delay].index, // point to the effect 'delay'
+			\amp, 1,
+			\time, 1,
+			\decay, 4,
+			\delay,Prand([0.5,0.25,0.125,0.375],inf),
+			\decay,4,
+			\dur,2
+		),
+		Pmono(\rngFlt,
+			\group,~effGroup,
+			\inBus, ~effBus[\flt].index, // point to the effect 'delay'
+			\freq,Pwhite(880,1760),
+			\decay,0.02,
+			\amp,0.5,
+			\dur,4
+		)
+]));
+)
+Pdef(\effPat).play
+Pdef(\effPat).stop
 
